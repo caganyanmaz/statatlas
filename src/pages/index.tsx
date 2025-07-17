@@ -1,115 +1,72 @@
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+import React, { useState } from "react";
+import Dropdown from "../components/Dropdown";
+import ChartRenderer from "../components/ChartRenderer";
+import Slider from "../components/Slider";
+import { useDataLoader } from "../hooks/useDataLoader";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const datasets = [
+  { value: "gdp_per_capita", label: "GDP per Capita" },
+  { value: "population", label: "Population" },
+];
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const chartTypes = [
+  { value: "bubble", label: "Bubble Chart" },
+  { value: "bar", label: "Bar Chart" },
+];
 
 export default function Home() {
+  const [dataset, setDataset] = useState("gdp_per_capita");
+  const [chartType, setChartType] = useState("bubble");
+  const [year, setYear] = useState(2022);
+
+  const { data, loading, error } = useDataLoader(dataset);
+
   return (
-    <div
-      className={`${geistSans.className} ${geistMono.className} font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20`}
-    >
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/pages/index.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <header className="flex items-center justify-between px-8 py-4 bg-white shadow">
+        <h1 className="text-2xl font-bold tracking-tight">StatAtlas</h1>
+        <a href="#" className="text-blue-600 hover:underline">About</a>
+      </header>
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar */}
+        <aside className="w-full max-w-xs bg-white border-r px-6 py-8 flex flex-col gap-6 shadow-sm">
+          <div>
+            <Dropdown
+              label="Dataset"
+              options={datasets}
+              value={dataset}
+              onChange={setDataset}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          </div>
+          <div>
+            <Dropdown
+              label="Chart Type"
+              options={chartTypes}
+              value={chartType}
+              onChange={setChartType}
+            />
+          </div>
+          <div>
+            <Slider min={1990} max={2022} value={year} onChange={setYear} />
+          </div>
+        </aside>
+        {/* Main chart area */}
+        <main className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col justify-center items-center w-full h-full min-h-0">
+            <div className="w-full h-full flex-1 flex items-center justify-center min-h-[350px]">
+              {loading && <div className="text-center text-gray-500">Loading data...</div>}
+              {error && <div className="text-center text-red-500">{error}</div>}
+              {!loading && !error && (
+                <ChartRenderer chartType={chartType} data={data} year={year} />
+              )}
+            </div>
+            <section className="mt-8 p-4 bg-white rounded shadow max-w-3xl w-full mx-auto">
+              <h2 className="font-semibold mb-2">Legend / Tooltip</h2>
+              <p className="text-gray-600 text-sm">Hover over the chart to see details here.</p>
+            </section>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
