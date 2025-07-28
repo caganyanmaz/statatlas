@@ -1,19 +1,28 @@
 import React, { useRef, useEffect, useState } from "react";
+import { ChartData } from "./ChartInterfaces";
 import * as d3 from "d3";
 
 interface BubbleChartProps {
-  data?: any;
-  year?: number;
+  chartData: ChartData;
 }
 
-const BubbleChart: React.FC<BubbleChartProps> = ({ data, year }) => {
+const BubbleChart: React.FC<BubbleChartProps> = ({ chartData }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 900, height: 500 });
+  const initializedCodes = useRef<Set<string>>(new Set());
+  const lastPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
 
-  // Responsive: observe container size
+  const codeToColor = useRef<Map<string, string>>(new Map());
+
+  const colorScale = d3.scaleOrdinal<string, string>(d3.schemeCategory10);
+  chartData.data.forEach((d, i) => {
+    if (!codeToColor.current.has(d.code)) {
+      codeToColor.current.set(d.code, colorScale(d.code));
+    }
+  });
+
   useEffect(() => {
-    if (!containerRef.current) return;
     const handleResize = () => {
       setContainerSize({
         width: containerRef.current?.offsetWidth || 900,
@@ -26,43 +35,16 @@ const BubbleChart: React.FC<BubbleChartProps> = ({ data, year }) => {
   }, []);
 
   useEffect(() => {
-    if (!data || !year || !data.data) return;
-    const yearStr = String(year);
-    const chartData = data.data
-      .map((d: any) => ({
-        country: d.country,
-        code: d.code,
-        value: d.values[yearStr],
-      }))
-      .filter((d: { value: number | undefined | null }) => typeof d.value === "number" && !isNaN(d.value));
-
-    // Responsive dimensions
     const width = Math.max(containerSize.width, 400);
     const height = Math.max(containerSize.height, 320);
-    const margin = 20;
 
-    // Only numbers for d3.min/max
-    const values: number[] = chartData
-      .map((d: { value: number }) => d.value)
-      .filter((v: number): v is number => typeof v === "number" && !isNaN(v));
-    const minValue = d3.min(values) ?? 0;
-    const maxValue = d3.max(values) ?? 1;
-
-    // Bubble size scale
-    const r = d3.scaleSqrt()
-      .domain([minValue, maxValue])
+    const values = chartData.data.map((d) => d.value);
+    const rScale = d3.scaleSqrt()
+      .domain([d3.min(values) ?? 0, d3.max(values) ?? 1])
       .range([10, 0.08 * width]);
 
-    // Color scale
-    const color = d3.scaleOrdinal<string, string>(d3.schemeCategory10);
 
-    // D3 pack layout
-    const root = d3.hierarchy<{ children: typeof chartData }>({ children: chartData })
-      .sum((d: any) => d.value);
-    const pack = d3.pack<{ children: typeof chartData }>()
-      .size([width - 2 * margin, height - 2 * margin])
-      .padding(4);
-    const nodes = pack(root).leaves();
+
 
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
@@ -72,44 +54,83 @@ const BubbleChart: React.FC<BubbleChartProps> = ({ data, year }) => {
       .attr("viewBox", `0 0 ${width} ${height}`)
       .attr("preserveAspectRatio", "xMidYMid meet");
 
-    const g = svg.append("g").attr("transform", `translate(${margin},${margin})`);
+    const g = svg.append("g");
 
-    g.selectAll("circle")
-      .data(nodes)
-      .enter()
-      .append("circle")
-      .attr("cx", (d: d3.HierarchyCircularNode<any>) => d.x)
-      .attr("cy", (d: d3.HierarchyCircularNode<any>) => d.y)
-      .attr("r", (d: d3.HierarchyCircularNode<any>) => d.r)
-      .attr("fill", (_d: d3.HierarchyCircularNode<any>, i: number) => color(i.toString()))
-      .attr("opacity", 0.8);
+    const nodes = chartData.data.map((d) => {
+      const last = lastPositions.current.get(d.code);
+      return {
+        ...d,
+        radius: rScale(d.value),
+        x: last?.x ?? width / 2 + Math.random() * 10,
+        y: last?.y ?? height / 2 + Math.random() * 10,
+      };
+    });
 
-    g.selectAll("text")
-      .data(nodes)
-      .enter()
-      .append("text")
-      .attr("x", (d: d3.HierarchyCircularNode<any>) => d.x)
-      .attr("y", (d: d3.HierarchyCircularNode<any>) => d.y)
-      .attr("text-anchor", "middle")
-      .attr("dy", ".3em")
-      .attr("font-size", (d: d3.HierarchyCircularNode<any>) => `${Math.max(10, d.r/2.5)}px`)
-      .attr("fill", "#222")
-      .text((d: d3.HierarchyCircularNode<any>) => d.data.code);
-  }, [data, year, containerSize]);
+    // Re-run simulation for layout update only
+    const simulation = d3.forceSimulation(nodes as any)
+      .force("charge", d3.forceManyBody().strength(1))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide().radius((d: any) => d.radius + 1))
+      .stop();
 
-  if (!data || !year) {
-    return (
-      <div className="h-64 flex items-center justify-center bg-gray-100 border rounded">
-        <span className="text-gray-400">No data available</span>
-      </div>
-    );
-  }
+    for (let i = 0; i < 100; i++) simulation.tick();
+
+    // Save new positions
+    nodes.forEach((d) => {
+      lastPositions.current.set(d.code, { x: d.x, y: d.y });
+    });
+
+    // Animate positions only — no popping
+    const circles = g.selectAll("circle")
+      .data(nodes, (d: any) => d.code)
+      .join(
+        enter =>
+          enter.append("circle")
+            .attr("cx", (d: any) => d.x)
+            .attr("cy", (d: any) => d.y)
+            .attr("r", (d: any) => d.radius)
+            .attr("fill", (d: any) => codeToColor.current.get(d.code)!)
+            .attr("opacity", 0.85),
+        update =>
+          update.transition()
+            .duration(800)
+            .attr("cx", (d: any) => d.x)
+            .attr("cy", (d: any) => d.y)
+            .attr("r", (d: any) => d.radius)
+      );
+
+    const labels = g.selectAll("text")
+      .data(nodes, (d: any) => d.code)
+      .join(
+        enter =>
+          enter.append("text")
+            .attr("x", (d: any) => d.x)
+            .attr("y", (d: any) => d.y)
+            .attr("text-anchor", "middle")
+            .attr("dy", ".3em")
+            .attr("font-size", (d: any) => `${Math.max(10, d.radius / 2.5)}px`)
+            .attr("fill", "#222")
+            .text((d: any) => d.code),
+        update =>
+          update.transition()
+            .duration(800)
+            .attr("x", (d: any) => d.x)
+            .attr("y", (d: any) => d.y)
+            .attr("font-size", (d: any) => `${Math.max(10, d.radius / 2.5)}px`)
+            .style("user-select", "none")
+            .style("cursor", "default")
+      );
+
+  }, [chartData, containerSize]);
 
   return (
-    <div ref={containerRef} className="w-full h-full flex items-center justify-center bg-gray-100 border rounded relative min-h-[350px] min-w-[350px]">
+    <div
+      ref={containerRef}
+      className="w-full h-full flex items-center justify-center bg-gray-100 border rounded relative min-h-[350px] min-w-[350px]"
+    >
       <svg ref={svgRef} style={{ width: "100%", height: "100%", display: "block" }} />
     </div>
   );
 };
 
-export default BubbleChart; 
+export default BubbleChart;

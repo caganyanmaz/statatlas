@@ -5,17 +5,19 @@ import Slider from "../components/Slider";
 import { useDataLoader } from "../hooks/useDataLoader";
 
 const datasets = [
-  { value: "gdp_per_capita", label: "GDP per Capita" },
+  { value: "gdp", label: "GDP" },
   { value: "population", label: "Population" },
 ];
 
 const chartTypes = [
   { value: "bubble", label: "Bubble Chart" },
   { value: "bar", label: "Bar Chart" },
+  { value: "map", label: "Map Chart"},
+  { value: "proportional-map", label: "Proportional Map Chart" }
 ];
 
 export default function Home() {
-  const [dataset, setDataset] = useState("gdp_per_capita");
+  const [dataset, setDataset] = useState("gdp");
   const [chartType, setChartType] = useState("bubble");
   const [year, setYear] = useState(2022);
 
@@ -47,7 +49,7 @@ export default function Home() {
             />
           </div>
           <div>
-            <Slider min={1990} max={2022} value={year} onChange={setYear} />
+            <Slider min={1960} max={2022} value={year} onChange={setYear} />
           </div>
         </aside>
         {/* Main chart area */}
@@ -57,7 +59,7 @@ export default function Home() {
               {loading && <div className="text-center text-gray-500">Loading data...</div>}
               {error && <div className="text-center text-red-500">{error}</div>}
               {!loading && !error && (
-                <ChartRenderer chartType={chartType} data={data} year={year} />
+                <ChartRenderer chartType={chartType} data={data} year={year} onlyCountries={true} />
               )}
             </div>
             <section className="mt-8 p-4 bg-white rounded shadow max-w-3xl w-full mx-auto">
