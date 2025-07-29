@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
-import { ChartData } from "./ChartInterfaces";
+import { ChartData, ChartDatum } from "./ChartInterfaces";
 import * as d3 from "d3";
+import Tooltip from "./Tooltip";
 
 interface BubbleChartProps {
   chartData: ChartData;
@@ -10,6 +11,7 @@ const BubbleChart: React.FC<BubbleChartProps> = ({ chartData }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 900, height: 500 });
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: React.ReactNode } | null>(null);
   const initializedCodes = useRef<Set<string>>(new Set());
   const lastPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
 
@@ -90,7 +92,23 @@ const BubbleChart: React.FC<BubbleChartProps> = ({ chartData }) => {
             .attr("cy", (d: any) => d.y)
             .attr("r", (d: any) => d.radius)
             .attr("fill", (d: any) => codeToColor.current.get(d.code)!)
-            .attr("opacity", 0.85),
+            .attr("opacity", 0.85)
+            .on("mouseenter", (event, d: any) => {
+              const [x, y] = d3.pointer(event, containerRef.current);
+              setTooltip({
+                x,
+                y,
+                content: (
+                  <>
+                    <div className="font-semibold text-blue-800 text-lg">{d.country}</div>
+                    <div className="text-blue-700 text-lg">{d3.format(",.0f")(d.value)}</div>
+                  </>
+                ),
+              });
+            })
+            .on("mouseleave", () => {
+              setTooltip(null);
+            }),
         update =>
           update.transition()
             .duration(800)
@@ -129,6 +147,11 @@ const BubbleChart: React.FC<BubbleChartProps> = ({ chartData }) => {
       className="w-full h-full flex items-center justify-center bg-gray-100 border rounded relative min-h-[350px] min-w-[350px]"
     >
       <svg ref={svgRef} style={{ width: "100%", height: "100%", display: "block" }} />
+      {tooltip && (
+        <div style={{ position: "absolute", left: tooltip.x + 10, top: tooltip.y }}>
+          <Tooltip content={tooltip.content} />
+        </div>
+      )}
     </div>
   );
 };

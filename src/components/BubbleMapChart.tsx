@@ -4,6 +4,7 @@ import { feature } from "topojson-client";
 import worldMap from "world-atlas/countries-110m.json";
 import { countryIdToCode } from "@/utils/isoHelpers";
 import { AnimationChartData, AnimationChartDatum } from "./ChartInterfaces";
+import Tooltip from "./Tooltip";
 
 interface BubbleMapProps {
   animationChartData: AnimationChartData;
@@ -14,6 +15,8 @@ const MENU_WIDTH = 250; // adjust to your menu width
 
 const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: React.ReactNode } | null>(null);
   const simulationRef = useRef<d3.Simulation<any, undefined> | null>(null);
   const nodesRef = useRef<
     (AnimationChartDatum & {
@@ -37,10 +40,10 @@ const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) 
     .scale(width / (2 * Math.PI))
     .translate([width / 2, height / 2]);
 
-  const countries = feature(
+  const countries = (feature(
     worldMap as any,
     (worldMap as any).objects.countries
-  ).features;
+  ) as any).features;
 
   const countryCoords: Record<string, [number, number]> = {};
   for (const country of countries) {
@@ -125,27 +128,45 @@ const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) 
   }, []);
 
   return (
-    <svg
-      ref={svgRef}
-      width={width}
-      height={height}
-      style={{ background: "#fdfdfd" }}
-    >
-      <g>
-        {nodesRef.current.map(b => (
-          <g key={b.code}>
-            <circle
-              cx={b.x}
-              cy={b.y}
-              r={b.radius}
-              fill={b.color}
-              stroke="#003366"
-              strokeWidth={0.8}
-              opacity={0.8}
-            />
-            <text
-              x={b.x}
-              y={b.y}
+    <div ref={containerRef} className="relative">
+      <svg
+        ref={svgRef}
+        width={width}
+        height={height}
+        style={{ background: "#fdfdfd" }}
+      >
+        <g>
+          {nodesRef.current.map(b => (
+            <g key={b.code}
+              onMouseEnter={(event) => {
+                const [x, y] = d3.pointer(event, containerRef.current);
+                setTooltip({
+                  x,
+                  y,
+                  content: (
+                    <>
+                      <div className="font-semibold text-blue-800 text-lg">{b.country}</div>
+                      <div className="text-blue-700 text-lg">{d3.format(",.0f")(b.valueForYear)}</div>
+                    </>
+                  ),
+                });
+              }}
+              onMouseLeave={() => {
+                setTooltip(null);
+              }}
+            >
+              <circle
+                cx={b.x}
+                cy={b.y}
+                r={b.radius}
+                fill={b.color}
+                stroke="#003366"
+                strokeWidth={0.8}
+                opacity={0.8}
+              />
+              <text
+                x={b.x}
+                y={b.y}
               textAnchor="middle"
               dy="0.35em"
               fontSize={10}
@@ -155,10 +176,16 @@ const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) 
             >
               {b.code}
             </text>
-          </g>
-        ))}
-      </g>
-    </svg>
+            </g>
+          ))}
+        </g>
+      </svg>
+      {tooltip && (
+        <div style={{ position: "absolute", left: tooltip.x + 10, top: tooltip.y, pointerEvents: "none" }}>
+          <Tooltip content={tooltip.content} />
+        </div>
+      )}
+    </div>
   );
 };
 

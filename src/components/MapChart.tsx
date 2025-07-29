@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import { feature } from "topojson-client";
 import worldMap from "world-atlas/countries-50m.json";
 import { ChartData } from "./ChartInterfaces";
 import { countryIdToCode, getInterpolatedValue } from "@/utils/isoHelpers";
+import Tooltip from "./Tooltip";
 
 const MENU_WIDTH = 500; // Adjust this based on your actual menu width
 
@@ -13,6 +14,8 @@ interface MapChartProps {
 
 const MapChart: React.FC<MapChartProps> = ({ chartData }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: React.ReactNode } | null>(null);
 
   useEffect(() => {
     const { data } = chartData;
@@ -41,7 +44,7 @@ const MapChart: React.FC<MapChartProps> = ({ chartData }) => {
       valueMap[datum.code] = datum.value;
     }
 
-    const countries = feature(worldMap as any, (worldMap as any).objects.countries).features;
+    const countries = (feature(worldMap as any, (worldMap as any).objects.countries) as any).features;
 
     svg
       .attr("width", width)
@@ -50,23 +53,46 @@ const MapChart: React.FC<MapChartProps> = ({ chartData }) => {
       .selectAll("path")
       .data(countries)
       .join("path")
-      .attr("d", path)
+      .attr("d", path as any)
       .attr("fill", (d: any) => {
         const val = getInterpolatedValue(countryIdToCode(d.id), valueMap);
         return val !== null ? color(val) : "#ccc";
       })
       .attr("stroke", "#333")
       .attr("stroke-width", 0.5)
-      .append("title")
-      .text((d: any) => {
-        const val = valueMap[countryIdToCode(d.id)];
-        return val !== undefined
-          ? `${d.properties.name}: ${val.toLocaleString()}`
-          : `${d.properties.name}: No data`;
+      .on("mouseenter", (event, d: any) => {
+        const [x, y] = d3.pointer(event, containerRef.current);
+        const val = getInterpolatedValue(countryIdToCode(d.id), valueMap);
+        setTooltip({
+          x,
+          y,
+          content: (
+            <>
+              <div className="font-semibold text-blue-800 text-lg">{d.properties.name}</div>
+              {val !== null ? (
+                <div className="text-blue-700 text-lg">{d3.format(",.0f")(val)}</div>
+              ) : (
+                <div className="text-gray-500 text-sm">No data</div>
+              )}
+            </>
+          ),
+        });
+      })
+      .on("mouseleave", () => {
+        setTooltip(null);
       });
   }, [chartData]);
 
-  return <svg ref={svgRef} style={{ display: "block" }} />;
+  return (
+    <div ref={containerRef} className="relative">
+      <svg ref={svgRef} style={{ display: "block" }} />
+      {tooltip && (
+        <div style={{ position: "absolute", left: tooltip.x + 10, top: tooltip.y, pointerEvents: "none" }}>
+          <Tooltip content={tooltip.content} />
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default MapChart;

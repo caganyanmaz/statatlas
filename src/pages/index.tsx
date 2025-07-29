@@ -13,7 +13,8 @@ const chartTypes = [
   { value: "bubble", label: "Bubble Chart" },
   { value: "bar", label: "Bar Chart" },
   { value: "map", label: "Map Chart"},
-  { value: "proportional-map", label: "Proportional Map Chart" }
+  { value: "proportional-map", label: "Proportional Map Chart" },
+  { value: "slope", label: "Slope Chart" }
 ];
 
 export default function Home() {

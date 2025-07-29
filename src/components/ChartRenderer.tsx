@@ -3,6 +3,7 @@ import BubbleChart from "./BubbleChart";
 import BarChart from "./BarChart";
 import MapChart from "./MapChart";
 import ProportionalMapChart from "./BubbleMapChart";
+import SlopeChart from "./SlopeChart";
 import { ChartDatum, ChartData, AnimationChartDatum, AnimationChartData } from "./ChartInterfaces";
 import { getTextWidth } from "../utils/chartHelpers"
 import { useState, useEffect } from 'react';
@@ -41,7 +42,7 @@ function constructChartData(data: any, year: number, onlyCountries: boolean): Ch
   };
 }
 
-function getChart(chartType: string, chartData: ChartData, year: number, animationChartData: AnimationChartData) {
+function getChart(chartType: string, chartData: ChartData, year: number, animationChartData: AnimationChartData, years: string[]) {
   if (chartType === "bubble") {
     return <BubbleChart chartData={chartData} />
   }
@@ -53,6 +54,9 @@ function getChart(chartType: string, chartData: ChartData, year: number, animati
   }
   if (chartType === "proportional-map") {
     return <ProportionalMapChart animationChartData={animationChartData} year={year} />
+  }
+  if (chartType === "slope") {
+    return <SlopeChart chartData={{data: animationChartData.data, allNames: chartData.allNames}} years={years} />
   }
 }
 
@@ -77,9 +81,10 @@ function constructAnimationChartData(data: any, onlyCountries: boolean): Animati
 const ChartRenderer: React.FC<ChartRendererProps> = ({ chartType, data, year, onlyCountries }) => {
   const chartData = constructChartData(data, year, onlyCountries)
   const animationChartData = constructAnimationChartData(data, onlyCountries)
+  const years = Object.keys(data.data[0].values).sort();
   // Responsive: observe container width
-  const chart = getChart(chartType, chartData, year, animationChartData);
+  const chart = getChart(chartType, chartData, year, animationChartData, years);
   return chart;
 };
 
-export default ChartRenderer; 
+export default ChartRenderer;
