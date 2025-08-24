@@ -128,11 +128,11 @@ const SlopeChart: React.FC<SlopeChartProps> = ({ chartData, years }) => {
       .style("stroke", "white")
       .style("stroke-width", "1.5px");
 
-    const mousemove = function(this: SVGRectElement, event: MouseEvent) {
+    const mousemove = function (this: SVGRectElement, event: MouseEvent) {
       const [mouseX, mouseY] = d3.pointer(event, this);
 
       const domain = x.domain();
-      const rangePoints = domain.map(d => x(d)!);
+      const rangePoints = domain.map((d) => x(d)!);
       const i = d3.bisectLeft(rangePoints, mouseX);
 
       if (i === 0 || i >= rangePoints.length) {
@@ -144,67 +144,78 @@ const SlopeChart: React.FC<SlopeChartProps> = ({ chartData, years }) => {
       const year1 = domain[i - 1];
       const year2 = domain[i];
 
-      let closestCountryData: SlopeDataPoint | null = null;
-      let closestYDistance = Infinity;
-      let interpolatedValue = 0;
+      // Find best match with a single, typed pass
+      type Best = {
+        dp: SlopeDataPoint;
+        interpValue: number;
+        hoverY: number;
+        dist: number;
+      } | null;
 
-      dataForChart.forEach(countryData => {
-        const v1 = countryData.values.find(v => v.year === year1);
-        const v2 = countryData.values.find(v => v.year === year2);
+      let best: Best = null;
 
-        if (v1 && v2) {
-          const x1 = x(v1.year)!;
-          const x2 = x(v2.year)!;
-          const y1 = y(v1.value);
-          const y2 = y(v2.value);
+      for (const countryData of dataForChart) {
+        const v1 = countryData.values.find((v) => v.year === year1);
+        const v2 = countryData.values.find((v) => v.year === year2);
+        if (!v1 || !v2) continue;
 
-          const hoverY = y1 + (y2 - y1) * ((mouseX - x1) / (x2 - x1));
-          const distance = Math.abs(mouseY - hoverY);
+        const x1 = x(v1.year)!;
+        const x2 = x(v2.year)!;
+        const y1 = y(v1.value);
+        const y2 = y(v2.value);
 
-          if (distance < closestYDistance) {
-            closestYDistance = distance;
-            closestCountryData = countryData;
-            interpolatedValue = v1.value + (v2.value - v1.value) * ((mouseX - x1) / (x2 - x1));
-          }
+        const t = (mouseX - x1) / (x2 - x1);
+        const hoverY = y1 + (y2 - y1) * t;
+        const dist = Math.abs(mouseY - hoverY);
+        const interpValue = v1.value + (v2.value - v1.value) * t;
+
+        if (!best || dist < best.dist) {
+          best = { dp: countryData, interpValue, hoverY, dist };
         }
-      });
+      }
 
-      if (closestCountryData && closestYDistance < 20) {
-        const hoverY = y(interpolatedValue);
-        const [tooltipX, tooltipY] = d3.pointer(event, containerRef.current!);
-
-        focus.style("display", null);
-        focus.select("circle")
-          .attr("transform", `translate(${mouseX},${hoverY})`)
-          .style("fill", color(closestCountryData.country));
-
-        focus.select(".x-hover-line")
-          .attr("x1", mouseX)
-          .attr("x2", mouseX)
-          .attr("y1", hoverY)
-          .attr("y2", drawHeight);
-
-        focus.select(".y-hover-line")
-          .attr("x1", 0)
-          .attr("x2", mouseX)
-          .attr("y1", hoverY)
-          .attr("y2", hoverY);
-
-        setTooltip({
-          x: tooltipX,
-          y: tooltipY,
-          content: (
-            <>
-              <div className="font-semibold text-blue-800 text-lg">{closestCountryData.country}</div>
-              <div className="text-blue-700 text-lg">{d3.format(",.0f")(interpolatedValue)}</div>
-            </>
-          ),
-        });
-      } else {
+      if (!best || best.dist >= 20) {
         focus.style("display", "none");
         setTooltip(null);
+        return;
       }
-    }
+
+      const { dp, interpValue, hoverY } = best;
+      const [tooltipX, tooltipY] = d3.pointer(event, containerRef.current!);
+
+      // Show focus
+      focus.style("display", "");
+      focus
+        .select("circle")
+        .attr("transform", `translate(${mouseX},${hoverY})`)
+        .style("fill", color(dp.country));
+
+      focus
+        .select(".x-hover-line")
+        .attr("x1", mouseX)
+        .attr("x2", mouseX)
+        .attr("y1", hoverY)
+        .attr("y2", drawHeight);
+
+      focus
+        .select(".y-hover-line")
+        .attr("x1", 0)
+        .attr("x2", mouseX)
+        .attr("y1", hoverY)
+        .attr("y2", hoverY);
+
+      setTooltip({
+        x: tooltipX,
+        y: tooltipY,
+        content: (
+          <>
+            <div className="font-semibold text-blue-800 text-lg">{dp.country}</div>
+            <div className="text-blue-700 text-lg">{d3.format(",.0f")(interpValue)}</div>
+          </>
+        ),
+      });
+    };
+
 
     g.append("rect")
       .attr("class", "overlay")
@@ -226,7 +237,7 @@ const SlopeChart: React.FC<SlopeChartProps> = ({ chartData, years }) => {
       .attr("class", "legend")
       .attr("transform", (d, i) => `translate(${drawWidth + 20},${i * 20})`);
 
-    legend.each(function(this: SVGGElement, d: SlopeDataPoint) {
+    legend.each(function (this: SVGGElement, d: SlopeDataPoint) {
       const group = d3.select(this);
       group.append("rect")
         .attr("x", 0)
