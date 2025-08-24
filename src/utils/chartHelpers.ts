@@ -13,3 +13,8 @@ export function getTextWidth(text: string, font: string) {
   context.font = font;
   return context.measureText(text).width;
 }
+
+
+export function isChartTypeRequiringYear(text: string) {
+  return text !== "slope";
+}
