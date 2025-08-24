@@ -19,6 +19,11 @@ const chartTypes = [
   { value: "slope", label: "Slope Chart" },
 ];
 
+// Year animation constants
+const YEAR_MIN = 1960;
+const YEAR_MAX = 2022;
+const STEP_MS = 50; // interval between year steps
+
 function AboutModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
 
@@ -126,8 +131,47 @@ export default function Home() {
   const [chartType, setChartType] = useState("bubble");
   const [year, setYear] = useState(2022);
   const [isShowingAboutPage, setIsShowingAboutPage] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const timerRef = useRef<number | null>(null);
 
   const { data, loading, error } = useDataLoader(dataset);
+
+  // Start/stop the year animation
+  useEffect(() => {
+    if (!isPlaying) {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+    if (year == YEAR_MAX)
+      setYear(YEAR_MIN);
+    timerRef.current = window.setInterval(() => {
+      setYear(prev => { 
+        if (prev == YEAR_MAX) {
+          setIsPlaying(false);
+          return YEAR_MAX;
+        } else {
+          return prev + 1;
+        }
+      }
+      )
+    }, STEP_MS);
+    return () => {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [isPlaying]);
+
+  // If current chart type doesn't use year, stop the animation
+  useEffect(() => {
+    if (!isChartTypeRequiringYear(chartType) && isPlaying) {
+      setIsPlaying(false);
+    }
+  }, [chartType, isPlaying]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -155,7 +199,27 @@ export default function Home() {
           </div>
           <div>
             {isChartTypeRequiringYear(chartType) ? (
-              <Slider min={1960} max={2022} value={year} onChange={setYear} />
+              <div className="flex items-center gap-3">
+                <Slider min={YEAR_MIN} max={YEAR_MAX} value={year} onChange={setYear} />
+                <button
+                  type="button"
+                  onClick={() => setIsPlaying((p) => !p)}
+                  aria-pressed={isPlaying}
+                  aria-label={isPlaying ? "Pause year animation" : "Play year animation"}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
+                    isPlaying
+                      ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {isPlaying ? (
+                    <span className="leading-none">⏸</span>
+                  ) : (
+                    <span className="leading-none">▶️</span>
+                  )}
+                  <span>{isPlaying ? "Pause" : "Play"}</span>
+                </button>
+              </div>
             ) : null}
           </div>
         </aside>

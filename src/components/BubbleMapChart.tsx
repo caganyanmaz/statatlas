@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import * as d3 from "d3";
 import { feature } from "topojson-client";
 import worldMap from "world-atlas/countries-110m.json";
@@ -35,23 +35,25 @@ const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) 
   const width = window.innerWidth - MENU_WIDTH;
   const height = window.innerHeight * 0.9;
 
-  const projection = d3
-    .geoNaturalEarth1()
-    .scale(width / (2 * Math.PI))
-    .translate([width / 2, height / 2]);
+  // ⬇️ Memoize projection & topo conversions so they don't change identity every render
+  const projection = useMemo(() =>
+    d3.geoNaturalEarth1().scale(width / (2 * Math.PI)).translate([width / 2, height / 2])
+  , [width, height]);
 
-  const countries = (feature(
-    worldMap as any,
-    (worldMap as any).objects.countries
-  ) as any).features;
+  const countries = useMemo(() => (
+    feature(worldMap as any, (worldMap as any).objects.countries) as any
+  ).features, []);
 
-  const countryCoords: Record<string, [number, number]> = {};
-  for (const country of countries) {
-    const code = countryIdToCode(country.id);
-    if (!code) continue;
-    const centroid = projection(d3.geoCentroid(country));
-    if (centroid) countryCoords[code] = centroid;
-  }
+  const countryCoords: Record<string, [number, number]> = useMemo(() => {
+    const map: Record<string, [number, number]> = {};
+    for (const country of countries) {
+      const code = countryIdToCode((country as any).id);
+      if (!code) continue;
+      const centroid = projection(d3.geoCentroid(country as any));
+      if (centroid) map[code] = centroid as [number, number];
+    }
+    return map;
+  }, [countries, projection]);
 
   useEffect(() => {
     if (!animationChartData || !animationChartData.data) return;
@@ -59,11 +61,10 @@ const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) 
     const yearStr = year.toString();
 
     // Calculate max value for this year only
-    const valuesForYear = animationChartData.data
-      .map(d => d.values[yearStr] ?? 0);
+    const valuesForYear = animationChartData.data.map((d) => d.values[yearStr] ?? 0);
     const totalValueForYear = d3.sum(valuesForYear) || 1;
 
-    const radiusRange = [3, 30];
+    const radiusRange: [number, number] = [3, 30];
     const radiusScale = d3.scaleSqrt().domain([0, totalValueForYear]).range(radiusRange);
 
     const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
@@ -72,15 +73,15 @@ const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) 
     const radiusMultiplier = 4;
 
     const newNodes = animationChartData.data
-      .map(d => {
+      .map((d) => {
         const coords = countryCoords[d.code];
         if (!coords) return null;
 
         const valueForYear = d.values[yearStr] ?? 0;
         const radius = radiusScale(valueForYear) * radiusMultiplier;
-        const color = colorScale(d.code);
+        const color = colorScale(d.code) as string;
 
-        const prevNode = oldNodes.find(b => b.code === d.code);
+        const prevNode = oldNodes.find((b) => b.code === d.code);
 
         return {
           ...d,
@@ -98,11 +99,12 @@ const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) 
     nodesRef.current = newNodes;
 
     if (simulationRef.current) {
-      simulationRef.current.nodes(newNodes);
+      simulationRef.current.nodes(newNodes as any);
       simulationRef.current.alpha(1).restart();
     }
 
-    setTick(v => v + 1);
+    // Force a paint once when nodes change
+    setTick((v) => v + 1);
   }, [animationChartData, year, countryCoords]);
 
   useEffect(() => {
@@ -116,7 +118,7 @@ const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) 
       .alphaDecay(0.02);
 
     sim.on("tick", () => {
-      setTick(v => v + 1);
+      setTick((v) => v + 1);
     });
 
     simulationRef.current = sim;
@@ -129,15 +131,11 @@ const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) 
 
   return (
     <div ref={containerRef} className="relative">
-      <svg
-        ref={svgRef}
-        width={width}
-        height={height}
-        style={{ background: "#fdfdfd" }}
-      >
+      <svg ref={svgRef} width={width} height={height} style={{ background: "#fdfdfd" }}>
         <g>
-          {nodesRef.current.map(b => (
-            <g key={b.code}
+          {nodesRef.current.map((b) => (
+            <g
+              key={b.code}
               onMouseEnter={(event) => {
                 const [x, y] = d3.pointer(event, containerRef.current);
                 setTooltip({
@@ -155,27 +153,10 @@ const BubbleMapChart: React.FC<BubbleMapProps> = ({ animationChartData, year }) 
                 setTooltip(null);
               }}
             >
-              <circle
-                cx={b.x}
-                cy={b.y}
-                r={b.radius}
-                fill={b.color}
-                stroke="#003366"
-                strokeWidth={0.8}
-                opacity={0.8}
-              />
-              <text
-                x={b.x}
-                y={b.y}
-              textAnchor="middle"
-              dy="0.35em"
-              fontSize={10}
-              fill="#222"
-              pointerEvents="none"
-              style={{ userSelect: "none" }}
-            >
-              {b.code}
-            </text>
+              <circle cx={b.x} cy={b.y} r={b.radius} fill={b.color} stroke="#003366" strokeWidth={0.8} opacity={0.8} />
+              <text x={b.x} y={b.y} textAnchor="middle" dy="0.35em" fontSize={10} fill="#222" pointerEvents="none" style={{ userSelect: "none" }}>
+                {b.code}
+              </text>
             </g>
           ))}
         </g>
